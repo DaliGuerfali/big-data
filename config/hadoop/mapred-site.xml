@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+
+  <!-- Use YARN as resource manager -->
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>local</value>
+    <!-- "local" for single-node dev; change to "yarn" for cluster mode -->
+  </property>
+
+  <!-- Mapper memory (MB) -->
+  <property>
+    <name>mapreduce.map.memory.mb</name>
+    <value>512</value>
+  </property>
+
+  <!-- Reducer memory (MB) -->
+  <property>
+    <name>mapreduce.reduce.memory.mb</name>
+    <value>512</value>
+  </property>
+
+  <!-- Mapper JVM heap -->
+  <property>
+    <name>mapreduce.map.java.opts</name>
+    <value>-Xmx400m</value>
+  </property>
+
+  <!-- Reducer JVM heap -->
+  <property>
+    <name>mapreduce.reduce.java.opts</name>
+    <value>-Xmx400m</value>
+  </property>
+
+  <!-- Number of reduce tasks per job -->
+  <property>
+    <name>mapreduce.job.reduces</name>
+    <value>2</value>
+  </property>
+
+  <!-- Speculative execution off for streaming jobs -->
+  <property>
+    <name>mapreduce.map.speculative</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>mapreduce.reduce.speculative</name>
+    <value>false</value>
+  </property>
+
+  <!-- History server address -->
+  <property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>namenode:10020</value>
+  </property>
+
+  <!-- History server web UI -->
+  <property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>namenode:19888</value>
+  </property>
+
+</configuration>

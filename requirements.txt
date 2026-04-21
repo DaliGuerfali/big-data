@@ -1,0 +1,42 @@
+# ── Kafka Producer ────────────────────────────────────────
+kafka-python==2.0.2
+confluent-kafka==2.3.0
+
+# ── HTTP / API Clients ────────────────────────────────────
+requests==2.31.0
+aiohttp==3.9.1
+
+# ── Async ─────────────────────────────────────────────────
+asyncio-throttle==1.0.2
+
+# ── Data Processing ───────────────────────────────────────
+pandas==2.1.4
+numpy==1.26.3
+pyarrow==14.0.2         # Parquet support
+sgp4==2.23              # TLE orbital mechanics
+
+# ── Geo-enrichment ────────────────────────────────────────
+reverse-geocoder==1.5.1
+
+# ── Serving Layer ─────────────────────────────────────────
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+redis==5.0.1
+websockets==12.0
+
+# ── HDFS Client ───────────────────────────────────────────
+hdfs==2.7.3
+
+# ── PySpark (for local testing) ───────────────────────────
+pyspark==3.5.1
+
+# ── Airflow ───────────────────────────────────────────────
+apache-airflow==2.8.1
+apache-airflow-providers-apache-spark==4.7.1
+
+# ── Utilities ─────────────────────────────────────────────
+python-dotenv==1.0.0
+pydantic==2.5.3
+loguru==0.7.2
+tenacity==8.2.3         # Retry logic
+schedule==1.2.1         # Simple scheduling
