@@ -1,0 +1,32 @@
+{
+  "_comment": "Satellite configuration for N2YO and TLE producers. NORAD IDs match TRACKED_SATELLITES in .env.",
+  "satellites": [
+    {
+      "norad_id": 25544,
+      "name": "ISS",
+      "description": "International Space Station — LEO, 420 km, 51.6 deg inclination"
+    },
+    {
+      "norad_id": 20580,
+      "name": "HUBBLE",
+      "description": "Hubble Space Telescope — LEO, 540 km, 28.5 deg inclination"
+    },
+    {
+      "norad_id": 43013,
+      "name": "STARLINK-24",
+      "description": "SpaceX Starlink constellation — LEO, 550 km, 53 deg inclination"
+    }
+  ],
+  "observer": {
+    "description": "Ground station — Tunis, Tunisia",
+    "latitude": 36.8,
+    "longitude": 10.18,
+    "altitude_m": 0
+  },
+  "orbit_categories": {
+    "LEO": {"min_km": 200,  "max_km": 2000,  "label": "Low Earth Orbit"},
+    "MEO": {"min_km": 2000, "max_km": 35786, "label": "Medium Earth Orbit"},
+    "GEO": {"min_km": 35786,"max_km": 35786, "label": "Geostationary Orbit"},
+    "HEO": {"min_km": 35786,"max_km": 999999,"label": "High Earth Orbit"}
+  }
+}

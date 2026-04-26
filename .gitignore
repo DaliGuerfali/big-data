@@ -16,6 +16,9 @@ venv/
 .vscode/
 *.iml
 
+# Logs
+logs/
+
 # Airflow
 airflow/logs/
 
