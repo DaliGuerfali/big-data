@@ -42,17 +42,19 @@ if ($envContent -match "NASA_API_KEY=DEMO_KEY") {
 
 # Check that Kafka is reachable before starting
 Write-Host "Checking Kafka connectivity (localhost:29092)..."
-$prev = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-$kafkaCheck = docker exec kafka kafka-broker-api-versions --bootstrap-server localhost:9092 2>&1 | Out-String
-$ErrorActionPreference = $prev
+$kafkaCheck = ""
+try {
+    $kafkaCheck = (docker exec kafka kafka-broker-api-versions --bootstrap-server localhost:9092) | Out-String
+} catch {
+    $kafkaCheck = ""
+}
 
 if ($kafkaCheck -match "Produce") {
     Write-Host "  [OK] Kafka is reachable"
 } else {
     Write-Warning "  Kafka does not appear to be running."
     Write-Host "  Start the platform first: .\scripts\start.ps1"
-    Write-Host "  Producers will retry on connection failure — continuing anyway."
+    Write-Host "  Producers will retry on connection failure - continuing anyway."
 }
 
 # Ensure logs directory exists (producers write producers.log here)
@@ -65,7 +67,7 @@ if (-not (Test-Path $LogsDir)) {
 
 Write-Host ""
 Write-Host "======================================================"
-Write-Host "  Satellite Tracking — Kafka Producers"
+Write-Host "  Satellite Tracking - Kafka Producers"
 Write-Host ""
 Write-Host "  Producers:"
 Write-Host "    ISS    -> sat.position.raw  (every 5s)"
