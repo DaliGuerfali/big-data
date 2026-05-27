@@ -51,28 +51,47 @@ if hdfs dfs -test -d "${HDFS_OUTPUT}" 2>/dev/null; then
     hdfs dfs -rm -r "${HDFS_OUTPUT}"
 fi
 
-# ── Submit Hadoop Streaming job ───────────────────────────────────────────────
-hadoop jar "${STREAMING_JAR}" \
-    -input  "${HDFS_INPUT}/date=${YEAR}-*" \
-    -output "${HDFS_OUTPUT}" \
-    -mapper  "python3 tle_drift_mapper.py" \
-    -reducer "python3 tle_drift_reducer.py" \
-    -file    "${MAPREDUCE_DIR}/tle_drift_mapper.py" \
-    -file    "${MAPREDUCE_DIR}/tle_drift_reducer.py" \
-    -file    "${MAPREDUCE_DIR}/tle_parser.py" \
-    -jobconf "mapreduce.job.name=TLE-Drift-Analysis-${YEAR}-W${WEEK}" \
-    -jobconf "mapreduce.map.memory.mb=512" \
-    -jobconf "mapreduce.reduce.memory.mb=512" \
-    -jobconf "mapreduce.job.reduces=1"
+# ── Run MapReduce via Python pipes (local mode) ───────────────────────────────
+# Hadoop Streaming JAR 3.x rejects absolute -file paths (RunJar security check).
+# Since mapreduce.framework.name=local we emulate Streaming with Python pipes —
+# identical semantics: mapper | sort (shuffle) | reducer → HDFS output.
 
-EXIT_CODE=$?
+TMP_INPUT=$(mktemp /tmp/tle_input.XXXXXX)
+TMP_OUTPUT=$(mktemp /tmp/tle_output.XXXXXX)
+
+echo "[run_mapreduce] Pulling input from HDFS..."
+hdfs dfs -cat "${HDFS_INPUT}/date=${YEAR}-*/*.json" 2>/dev/null > "${TMP_INPUT}" || \
+hdfs dfs -cat "${HDFS_INPUT}/date=${YEAR}-*/*"      2>/dev/null > "${TMP_INPUT}" || true
+
+INPUT_LINES=$(wc -l < "${TMP_INPUT}")
+echo "[run_mapreduce] Input lines: ${INPUT_LINES}"
+
+if [[ "${INPUT_LINES}" -eq 0 ]]; then
+    echo "[run_mapreduce] WARNING: No input data for ${YEAR}-W${WEEK}. Writing empty report."
+    echo "{\"warning\":\"no_input_data\",\"year\":\"${YEAR}\",\"week\":\"${WEEK}\"}" > "${TMP_OUTPUT}"
+    EXIT_CODE=0
+else
+    echo "[run_mapreduce] Running mapper | sort | reducer..."
+    PYTHONPATH="${MAPREDUCE_DIR}" python3 "${MAPREDUCE_DIR}/tle_drift_mapper.py" < "${TMP_INPUT}" \
+        | sort \
+        | PYTHONPATH="${MAPREDUCE_DIR}" python3 "${MAPREDUCE_DIR}/tle_drift_reducer.py" \
+        > "${TMP_OUTPUT}"
+    EXIT_CODE=$?
+fi
+
+rm -f "${TMP_INPUT}"
 
 if [[ "${EXIT_CODE}" -eq 0 ]]; then
+    echo "[run_mapreduce] Pipeline finished. Uploading to HDFS..."
+    hdfs dfs -mkdir -p "${HDFS_OUTPUT}"
+    hdfs dfs -put "${TMP_OUTPUT}" "${HDFS_OUTPUT}/part-00000"
+    rm -f "${TMP_OUTPUT}"
     echo "[run_mapreduce] Job completed successfully."
     echo "[run_mapreduce] Results at: ${HDFS_OUTPUT}"
     echo "[run_mapreduce] Preview:"
-    hdfs dfs -cat "${HDFS_OUTPUT}/part-00000" | head -5 || true
+    hdfs dfs -cat "${HDFS_OUTPUT}/part-00000" 2>/dev/null | head -5 || true
 else
-    echo "[run_mapreduce] ERROR: Job failed with exit code ${EXIT_CODE}" >&2
+    rm -f "${TMP_OUTPUT}"
+    echo "[run_mapreduce] ERROR: Pipeline failed with exit code ${EXIT_CODE}" >&2
     exit "${EXIT_CODE}"
 fi

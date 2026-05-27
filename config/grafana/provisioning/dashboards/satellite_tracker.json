@@ -1,0 +1,239 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.2.0" },
+    { "type": "datasource", "id": "redis-datasource", "name": "Redis", "version": "2.2.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Satellite Tracker — real-time positions, anomaly alerts and space weather",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Tracked Satellites — Current Status",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "options": {
+        "showHeader": true,
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "KEYS sat:meta:*"
+        }
+      ],
+      "description": "Live metadata for each tracked satellite. Keys from sat:meta:*"
+    },
+
+    {
+      "id": 2,
+      "title": "ISS — Altitude (km) over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "km",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": { "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "GET sat:position:25544",
+          "command": "ts.get",
+          "keyName": "sat:altitude:25544"
+        }
+      ],
+      "description": "Reads sat:position:25544 (latest enriched JSON). Wire a TimeSeries key sat:altitude:{id} for a live chart."
+    },
+
+    {
+      "id": 3,
+      "title": "ISS — Current Position",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "GET sat:position:25544"
+        }
+      ],
+      "description": "Raw JSON of the latest enriched ISS position from Redis."
+    },
+
+    {
+      "id": 4,
+      "title": "Recent Anomaly Alerts",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "LRANGE sat:alerts:25544 0 19"
+        }
+      ],
+      "description": "Latest 20 alert IDs for ISS. Expand to fetch alert:{id} detail."
+    },
+
+    {
+      "id": 5,
+      "title": "Active Space Weather Events",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "SMEMBERS events:active"
+        }
+      ],
+      "description": "Active event IDs from the events:active Redis set."
+    },
+
+    {
+      "id": 6,
+      "title": "Bridge Throughput — Positions Cached",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 3 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "DBSIZE"
+        }
+      ],
+      "description": "Total keys in Redis — proxy metric for bridge activity."
+    },
+
+    {
+      "id": 7,
+      "title": "ISS — Orbit Type",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 22 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "HGET sat:meta:25544 orbit_type"
+        }
+      ]
+    },
+
+    {
+      "id": 8,
+      "title": "ISS — Last Seen",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 22 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "HGET sat:meta:25544 last_seen"
+        }
+      ]
+    },
+
+    {
+      "id": 9,
+      "title": "Active Space Weather Count",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 22 },
+      "datasource": { "type": "redis-datasource", "uid": "redis" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "command",
+          "query": "SCARD events:active"
+        }
+      ]
+    }
+
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["satellite", "realtime"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Satellite Tracker",
+  "uid": "satellite-tracker-v1",
+  "version": 1,
+  "weekStart": ""
+}

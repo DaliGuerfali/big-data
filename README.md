@@ -145,9 +145,47 @@ Kafka Topics
 | Part | Status | Description |
 |------|--------|-------------|
 | 1 — Infrastructure | Done | Docker, Kafka, Hadoop, Spark |
-| 2 — Producers | Pending | Python Kafka producers for all 4 APIs |
-| 3 — Stream Processing | Pending | Spark Structured Streaming jobs |
-| 4 — Batch Processing | Pending | Spark + MapReduce jobs |
-| 5 — Orchestration | Pending | Airflow DAGs |
-| 6 — Serving Layer | Pending | FastAPI, Redis bridge, Grafana |
+| 2 — Producers | Done | Python Kafka producers for all 4 APIs |
+| 3 — Stream Processing | Done | Spark Structured Streaming jobs |
+| 4 — Batch Processing | Done | Spark + MapReduce jobs |
+| 5 — Orchestration | Done | Airflow DAGs |
+| 6 — Serving Layer | Done | FastAPI, Redis bridge, Grafana |
 | 7 — Testing | Pending | Integration and performance tests |
+
+---
+
+## Running the Pipelines (Part 5)
+
+### How it works
+
+Airflow cannot run `spark-submit` or `hadoop` itself — it doesn't have those binaries.
+Instead, the custom `SparkSubmitDockerOperator` and `HadoopStreamingDockerOperator`
+(in `airflow/plugins/operators/`) exec commands inside the **running** `spark-master`
+and `namenode` containers via the Docker socket, streaming all output back to the
+Airflow task log.
+
+### DAGs
+
+| DAG | Schedule | Description |
+|-----|----------|-------------|
+| `satellite_daily_pipeline` | 02:00 UTC daily | HDFS freshness check → Spark aggregation → trigger |
+| `satellite_weekly_pipeline` | 04:00 UTC Sundays | ISO week calc → Hadoop MapReduce TLE drift → trigger |
+| `satellite_monitoring` | Every 6 hours | HDFS partition freshness alerts |
+
+### Trigger a DAG manually
+
+```powershell
+# From the Airflow UI at http://localhost:8083 — toggle the DAG on, then click "Trigger DAG"
+# Or via CLI:
+docker exec airflow-scheduler airflow dags trigger satellite_daily_pipeline --conf '{"date":"2024-01-15"}'
+```
+
+### Running tests
+
+```powershell
+# Pure-logic tests (no Docker or Airflow needed):
+.venv\Scripts\python.exe -m pytest tests/test_docker_exec_operator.py tests/test_week_boundaries.py -v
+
+# Full suite including DAG-validity tests (run inside the container where Airflow is installed):
+docker exec airflow-scheduler python -m pytest /opt/airflow/tests/ -v
+```

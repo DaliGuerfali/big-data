@@ -147,6 +147,11 @@ docker compose -f $ComposeFile up -d airflow-webserver airflow-scheduler grafana
 Wait-Healthy -Container "airflow-webserver" -MaxWaitSec 120
 Wait-Healthy -Container "grafana"           -MaxWaitSec 60
 
+# -- Step 6: Serving Layer ----------------------------------
+Write-Host "Step 6: Starting serving layer..."
+docker compose -f $ComposeFile up -d satellite-api kafka-redis-bridge
+Wait-Healthy -Container "satellite-api" -MaxWaitSec 60
+
 # -- Summary -------------------------------------------
 Write-Host ""
 Write-Host "======================================================"
@@ -160,6 +165,8 @@ Write-Host "  | Spark Master UI       | http://localhost:8081         |"
 Write-Host "  | Spark Worker UI       | http://localhost:8082         |"
 Write-Host "  | Airflow UI            | http://localhost:8083         |"
 Write-Host "  | Grafana               | http://localhost:3000         |"
+Write-Host "  | Satellite API         | http://localhost:8084         |"
+Write-Host "  | API Docs (Swagger)    | http://localhost:8084/docs    |"
 Write-Host "  +-----------------------+------------------------------+"
 Write-Host ""
 Write-Host "  Credentials (Airflow + Grafana): admin / admin"

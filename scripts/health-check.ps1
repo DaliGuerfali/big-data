@@ -154,6 +154,21 @@ Invoke-Check "Grafana API health" {
 Write-Host ""
 
 # -------------------------------------------------------
+# Satellite API
+# -------------------------------------------------------
+Write-Host "[ Satellite API ]"
+
+Invoke-Check "API health endpoint" {
+    (Invoke-WebRequest -Uri "http://localhost:8084/health" -UseBasicParsing).Content
+} "ok"
+
+Invoke-Check "API Swagger docs" {
+    (Invoke-WebRequest -Uri "http://localhost:8084/docs" -UseBasicParsing).Content
+} "Satellite Tracker"
+
+Write-Host ""
+
+# -------------------------------------------------------
 # Kafka UI
 # -------------------------------------------------------
 Write-Host "[ Kafka UI ]"

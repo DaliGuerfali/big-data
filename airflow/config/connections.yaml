@@ -1,0 +1,52 @@
+# Satellite Tracker — Airflow connection and resource configuration
+# Single source of truth for container names, topics, and service addresses.
+# DAGs read environment variables; this file documents what those vars should be
+# and provides a reference for operators and scripts.
+
+services:
+  kafka:
+    bootstrap_servers: "kafka:9092"     # KAFKA_BOOTSTRAP_SERVERS env var
+    topics:
+      position_raw:      "sat.position.raw"
+      position_enriched: "sat.position.enriched"
+      tle_raw:           "sat.tle.raw"
+      events_raw:        "sat.events.raw"
+      alerts:            "sat.alerts"
+      batch_trigger:     "sat.batch.trigger"
+
+  hdfs:
+    namenode_url: "hdfs://namenode:8020"  # HDFS_NAMENODE_URL env var
+    paths:
+      raw_positions:  "/satellite/raw/positions"     # partitioned by date=YYYY-MM-DD/satellite_id=N
+      raw_tle:        "/satellite/raw/tle"           # partitioned by date=YYYY-MM-DD
+      raw_events:     "/satellite/raw/events"        # partitioned by date=YYYY-MM-DD/type=CME|FLR|..
+      aggregated:     "/satellite/aggregated/daily"  # ORC, partitioned by date=YYYY-MM-DD
+      drift_reports:  "/satellite/reports/drift"     # JSON, partitioned by week=YYYY-WW
+      checkpoints:    "/satellite/checkpoints"
+
+  spark:
+    master_url: "spark://spark-master:7077"  # SPARK_MASTER_URL env var
+    container: "spark-master"
+    jobs_dir: "/opt/spark/jobs/batch"
+    jobs:
+      daily_aggregation: "/opt/spark/jobs/batch/daily_aggregation.py"
+
+  hadoop:
+    container: "namenode"
+    mapreduce_dir: "/opt/batch/mapreduce"
+    scripts:
+      tle_drift: "/opt/batch/mapreduce/run_mapreduce.sh"
+
+  redis:
+    url: "redis://redis:6379"
+
+airflow:
+  # DAG schedules
+  schedules:
+    daily_pipeline:    "0 2 * * *"    # 02:00 UTC — after midnight data collection
+    weekly_pipeline:   "0 4 * * 0"    # 04:00 UTC Sundays
+    monitoring:        "0 */6 * * *"  # Every 6 hours
+
+  # Retry policy (default for batch jobs)
+  retries: 2
+  retry_delay_minutes: 5
