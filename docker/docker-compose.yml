@@ -21,7 +21,7 @@ x-airflow-common: &airflow-common
     HDFS_NAMENODE_URL: hdfs://namenode:8020
     SPARK_MASTER_URL: spark://spark-master:7077
     # Install docker-py and kafka-python at container startup
-    _PIP_ADDITIONAL_REQUIREMENTS: "docker==7.1.0 kafka-python==2.0.2"
+    _PIP_ADDITIONAL_REQUIREMENTS: "docker==7.1.0 kafka-python==2.0.2 redis==5.0.1"
   volumes:
     - ../airflow/dags:/opt/airflow/dags
     - ../airflow/plugins:/opt/airflow/plugins
@@ -365,7 +365,10 @@ services:
 
   # ── Satellite API (FastAPI) ───────────────────────────────
   satellite-api:
-    image: python:3.11-slim
+    build:
+      context: ..
+      dockerfile: docker/satellite-api/Dockerfile
+    image: satellite-api:local
     container_name: satellite-api
     hostname: satellite-api
     networks:
@@ -373,9 +376,6 @@ services:
     ports:
       - "8084:8084"
     working_dir: /app
-    command: >
-      bash -c "pip install --quiet fastapi uvicorn[standard] redis httpx &&
-               python -m uvicorn serving.api.main:app --host 0.0.0.0 --port 8084"
     environment:
       REDIS_URL: redis://redis:6379
       HDFS_NAMENODE_URL: hdfs://namenode:8020
@@ -387,22 +387,22 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 20s
 
   # ── Kafka-to-Redis Bridge ─────────────────────────────────
   kafka-redis-bridge:
-    image: python:3.11-slim
+    build:
+      context: ..
+      dockerfile: docker/kafka-redis-bridge/Dockerfile
+    image: kafka-redis-bridge:local
     container_name: kafka-redis-bridge
     hostname: kafka-redis-bridge
     networks:
       - satellite-net
     working_dir: /app
-    command: >
-      bash -c "pip install --quiet kafka-python redis &&
-               python -m serving.bridge.kafka_redis_bridge"
     environment:
       REDIS_URL: redis://redis:6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092

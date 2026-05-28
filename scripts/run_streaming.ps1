@@ -110,7 +110,7 @@ Start-Sleep -Seconds 20
 # ── Start anomaly_detection ───────────────────────────────────────────────────
 
 Write-Host "Starting anomaly_detection (Spark job 2)..."
-docker exec -d spark-master /opt/spark/bin/spark-submit --master spark://spark-master:7077 --total-executor-cores 1 --executor-memory 512m /opt/spark/jobs/streaming/anomaly_detection.py
+docker exec -d spark-master bash -c "pip install -q redis && /opt/spark/bin/spark-submit --master spark://spark-master:7077 --total-executor-cores 1 --executor-memory 512m /opt/spark/jobs/streaming/anomaly_detection.py"
 Write-Host "  [OK] Submitted"
 
 # ── Summary ───────────────────────────────────────────────────────────────────

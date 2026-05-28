@@ -6,12 +6,12 @@ Design Pattern: Stream Processing (Lambda Architecture - Speed Layer)
 Input:  sat.position.enriched  (from orbit_enrichment job)
         sat.events.raw         (from DONKIProducer)
 Output: sat.alerts  (Kafka)
-        Redis       (hot store for serving layer — via foreachBatch)
+        Redis       (hot store for serving layer â€” via foreachBatch)
 
 Detection rules:
-  1. Velocity anomaly   — deviation > 2σ over 60s sliding window
-  2. Altitude anomaly   — rapid descent/ascent > 5 km in 60s window
-  3. Space weather join — satellite in path during active CME/GST event
+  1. Velocity anomaly   â€” deviation > 2Ïƒ over 60s sliding window
+  2. Altitude anomaly   â€” rapid descent/ascent > 5 km in 60s window
+  3. Space weather join â€” satellite in path during active CME/GST event
 """
 
 import json
@@ -35,7 +35,7 @@ from pyspark.sql.types import (
     ArrayType,
 )
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# â”€â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 HDFS_NAMENODE   = os.getenv("HDFS_NAMENODE_URL", "hdfs://namenode:8020")
@@ -52,7 +52,7 @@ VELOCITY_SIGMA_THRESHOLD  = 2.0   # alert if deviation > 2 standard deviations
 ALTITUDE_DROP_KM_PER_60S  = 5.0   # alert if altitude changes > 5 km in 60s
 MIN_SAMPLES_FOR_ANOMALY   = 3     # minimum samples before triggering stats alert
 
-# ─── Input schemas ────────────────────────────────────────────────────────────
+# â”€â”€â”€ Input schemas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 GEO_SCHEMA = StructType([
     StructField("country_code",  StringType(),  True),
@@ -102,7 +102,7 @@ EVENTS_SCHEMA = StructType([
     StructField("ingestion_time", StringType(),  True),
 ])
 
-# ─── Alert builder helpers ────────────────────────────────────────────────────
+# â”€â”€â”€ Alert builder helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _make_alert(alert_type: str, severity: str, satellite_id: int,
                 satellite_name: str, details: dict,
@@ -123,7 +123,7 @@ def _make_alert(alert_type: str, severity: str, satellite_id: int,
     return alert
 
 
-# ─── Redis writer (used inside foreachBatch) ─────────────────────────────────
+# â”€â”€â”€ Redis writer (used inside foreachBatch) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _write_alerts_to_redis(alerts: List[dict]):
     """Push alert dicts to Redis. Called from foreachBatch worker nodes."""
@@ -147,13 +147,13 @@ def _write_alerts_to_redis(alerts: List[dict]):
         print(f"[anomaly-detection] Redis write failed: {exc}")
 
 
-# ─── foreachBatch sink: Kafka + Redis ─────────────────────────────────────────
+# â”€â”€â”€ foreachBatch sink: Kafka + Redis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def write_alerts_batch(batch_df: DataFrame, batch_id: int):
     """
     Write each micro-batch of alerts to:
-      • Kafka  sat.alerts  (via DataFrame.write.format("kafka"))
-      • Redis  alert:{id}  (via python-redis)
+      â€¢ Kafka  sat.alerts  (via DataFrame.write.format("kafka"))
+      â€¢ Redis  alert:{id}  (via python-redis)
 
     Space weather correlation is done here as a batch read rather than a
     stream-stream join, because Spark requires an equality predicate for
@@ -204,7 +204,7 @@ def write_alerts_batch(batch_df: DataFrame, batch_id: int):
     if combined_df.isEmpty():
         return
 
-    # Kafka write — need value column as JSON string
+    # Kafka write â€” need value column as JSON string
     kafka_df = combined_df.withColumn(
         "value",
         to_json(struct(*[c for c in combined_df.columns if c != "key"])),
@@ -221,35 +221,30 @@ def write_alerts_batch(batch_df: DataFrame, batch_id: int):
         .save()
     )
 
-    # Redis write — collect is safe here because alerts are low-volume
+    # Redis write â€” collect is safe here because alerts are low-volume
     rows = combined_df.collect()
     alerts = [row.asDict(recursive=True) for row in rows]
     _write_alerts_to_redis(alerts)
 
 
-# ─── Build SparkSession ───────────────────────────────────────────────────────
+# â”€â”€â”€ Build SparkSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def build_spark() -> SparkSession:
     return (
         SparkSession.builder
         .appName("SatAnomalyDetection")
         .config("spark.sql.shuffle.partitions", "4")
-        .config(
-            "spark.jars.packages",
-            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,"
-            "org.apache.hadoop:hadoop-client:3.3.4",
-        )
         .getOrCreate()
     )
 
 
-# ─── Main streaming logic ─────────────────────────────────────────────────────
+# â”€â”€â”€ Main streaming logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def run():
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
 
-    # ── 1. Read enriched positions ──────────────────────────────────────────
+    # â”€â”€ 1. Read enriched positions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     enriched_raw = (
         spark.readStream
         .format("kafka")
@@ -273,7 +268,7 @@ def run():
         .withColumn("velocity_km_s", col("orbit.velocity_km_s"))
     )
 
-    # ── 2. Sliding window aggregation (60s window, 10s slide) ───────────────
+    # â”€â”€ 2. Sliding window aggregation (60s window, 10s slide) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Note: space weather events are correlated inside write_alerts_batch via
     # a batch Kafka read, not a stream-stream join (which requires an equality
     # predicate that doesn't exist for global solar events).
@@ -294,7 +289,7 @@ def run():
         )
     )
 
-    # ── 4. Velocity anomaly UDF ──────────────────────────────────────────────
+    # â”€â”€ 4. Velocity anomaly UDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @udf(returnType=BooleanType())
     def is_velocity_anomaly(avg_v, stddev_v, sample_count):
@@ -315,7 +310,7 @@ def run():
             return False
         return (max_alt - min_alt) > ALTITUDE_DROP_KM_PER_60S
 
-    # ── 5. Build alert rows from windowed stats ──────────────────────────────
+    # â”€â”€ 5. Build alert rows from windowed stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @udf(returnType=StringType())
     def velocity_alert_json(satellite_id, satellite_name, avg_v, stddev_v,
@@ -420,13 +415,13 @@ def run():
 
     alerts_df = parse_alert_df(vel_anomalies).union(parse_alert_df(alt_anomalies))
 
-    # ── 6. Space weather correlation ─────────────────────────────────────────
+    # â”€â”€ 6. Space weather correlation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Handled inside write_alerts_batch via batch Kafka read + crossJoin.
     # Stream-stream join is not viable here: Catalyst constant-folds any
     # lit("x") == lit("x") equality predicate away, leaving only the range
     # condition which Spark rejects at plan time.
 
-    # ── 7. Write ──────────────────────────────────────────────────────────────
+    # â”€â”€ 7. Write â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     all_alerts = alerts_df
 

@@ -150,7 +150,7 @@ Wait-Healthy -Container "grafana"           -MaxWaitSec 60
 # -- Step 6: Serving Layer ----------------------------------
 Write-Host "Step 6: Starting serving layer..."
 docker compose -f $ComposeFile up -d satellite-api kafka-redis-bridge
-Wait-Healthy -Container "satellite-api" -MaxWaitSec 60
+Wait-Healthy -Container "satellite-api" -MaxWaitSec 180
 
 # -- Summary -------------------------------------------
 Write-Host ""

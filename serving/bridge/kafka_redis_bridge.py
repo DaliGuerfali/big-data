@@ -104,6 +104,29 @@ def handle_position(r: redis.Redis, data: dict[str, Any]) -> None:
         r.hset(key_meta(sat_id), mapping=meta_fields)
         r.expire(key_meta(sat_id), META_TTL)
 
+    # Flat hash for Grafana (HGETALL displays as clean key/value table)
+    pos = data.get("position") or {}
+    geo = data.get("geo") or {}
+    orbit = data.get("orbit") or {}
+    lighting = data.get("lighting") or {}
+    flat = {
+        "satellite_name":  str(data.get("satellite_name") or sat_id),
+        "latitude":        str(pos.get("latitude", "")),
+        "longitude":       str(pos.get("longitude", "")),
+        "altitude_km":     str(pos.get("altitude_km", "")),
+        "orbit_type":      str(orbit.get("type", "")),
+        "velocity_km_s":   str(orbit.get("velocity_km_s", "")),
+        "period_minutes":  str(orbit.get("period_minutes", "")),
+        "country":         str(geo.get("country_name", "")),
+        "region":          str(geo.get("region", "")),
+        "over_ocean":      str(geo.get("over_ocean", "")),
+        "in_sunlight":     str(lighting.get("in_sunlight", "")),
+        "source":          str(data.get("source", "")),
+        "last_updated":    datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+    r.hset(f"sat:pos:flat:{sat_id}", mapping=flat)
+    r.expire(f"sat:pos:flat:{sat_id}", POSITION_TTL)
+
     # Pub/sub for live WebSocket subscribers
     r.publish(key_channel_position(sat_id), payload)
 
@@ -124,11 +147,16 @@ def handle_alert(r: redis.Redis, data: dict[str, Any]) -> None:
     r.setex(key_alert(alert_id), ALERT_TTL, payload)
 
     if sat_id is not None:
-        # Prepend to satellite's alert list, cap at ALERT_LIST_MAX
         pipe = r.pipeline()
         pipe.lpush(key_alerts_list(sat_id), alert_id)
         pipe.ltrim(key_alerts_list(sat_id), 0, ALERT_LIST_MAX - 1)
         pipe.execute()
+
+    # Global recent-alerts list with full JSON (for Grafana)
+    pipe2 = r.pipeline()
+    pipe2.lpush("alerts:recent", payload)
+    pipe2.ltrim("alerts:recent", 0, 49)
+    pipe2.execute()
 
     log.info("[alert] type=%s sat=%s id=%s", data.get("alert_type"), sat_id, alert_id)
 
@@ -145,6 +173,11 @@ def handle_event(r: redis.Redis, data: dict[str, Any]) -> None:
 
     r.setex(key_event(event_id), EVENT_TTL, payload)
     r.sadd(EVENTS_ACTIVE, event_id)
+
+    pipe = r.pipeline()
+    pipe.lpush("events:recent", payload)
+    pipe.ltrim("events:recent", 0, 49)
+    pipe.execute()
 
     log.info("[event] type=%s id=%s", event_type, event_id)
 
@@ -181,11 +214,29 @@ def create_consumer(retries: int = 10, wait: int = 5):
     raise RuntimeError(f"Could not connect to Kafka at {KAFKA_BOOTSTRAP} after {retries} attempts")
 
 
+def _backfill_events_recent(r: Any) -> None:
+    """Populate events:recent from existing event:* keys if the list is empty."""
+    if r.exists("events:recent"):
+        return
+    event_keys = r.keys("event:*")
+    if not event_keys:
+        return
+    pipe = r.pipeline()
+    for key in event_keys[:50]:
+        val = r.get(key)
+        if val:
+            pipe.lpush("events:recent", val)
+    pipe.ltrim("events:recent", 0, 49)
+    pipe.execute()
+    log.info("Backfilled events:recent with %d events", min(len(event_keys), 50))
+
+
 def run_bridge() -> None:
     import redis
     r = redis.from_url(REDIS_URL, decode_responses=False)
     r.ping()
     log.info("Redis connected at %s", REDIS_URL)
+    _backfill_events_recent(r)
 
     consumer = create_consumer()
 

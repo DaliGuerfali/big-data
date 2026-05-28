@@ -3,7 +3,7 @@ apiVersion: 1
 providers:
   - name: satellite-dashboards
     orgId: 1
-    folder: Satellite Tracker
+    folder: Satellite Monitoring
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

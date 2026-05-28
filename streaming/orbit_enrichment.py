@@ -8,10 +8,10 @@ Output: sat.position.enriched (Kafka)
         hdfs:///satellite/raw/positions (Parquet, partitioned by date/satellite_id)
 
 Transformations:
-  1. Schema normalization — unify Open-Notify (no altitude) and N2YO (full fields)
-  2. Geo-enrichment      — reverse geocode lat/lon → country_code, country_name, region, over_ocean
-  3. Orbit classification — altitude_km → orbit type (LEO/MEO/GEO/HEO) + velocity + period
-  4. Lighting indicator  — simplified solar angle → in_sunlight flag
+  1. Schema normalization â€” unify Open-Notify (no altitude) and N2YO (full fields)
+  2. Geo-enrichment      â€” reverse geocode lat/lon â†’ country_code, country_name, region, over_ocean
+  3. Orbit classification â€” altitude_km â†’ orbit type (LEO/MEO/GEO/HEO) + velocity + period
+  4. Lighting indicator  â€” simplified solar angle â†’ in_sunlight flag
 """
 
 import json
@@ -29,7 +29,7 @@ from pyspark.sql.types import (
     DoubleType, BooleanType, LongType, TimestampType,
 )
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# â”€â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 HDFS_NAMENODE   = os.getenv("HDFS_NAMENODE_URL", "hdfs://namenode:8020")
@@ -39,7 +39,7 @@ INPUT_TOPIC    = "sat.position.raw"
 OUTPUT_TOPIC   = "sat.position.enriched"
 HDFS_OUTPUT    = f"{HDFS_NAMENODE}/satellite/raw/positions"
 
-# ─── Input schema (union of Open-Notify + N2YO fields) ───────────────────────
+# â”€â”€â”€ Input schema (union of Open-Notify + N2YO fields) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 RAW_SCHEMA = StructType([
     StructField("satellite_id",   IntegerType(), True),
@@ -56,11 +56,11 @@ RAW_SCHEMA = StructType([
     StructField("ingestion_time", StringType(),  True),
 ])
 
-# ─── Geo-enrichment: offline bounding-box lookup ─────────────────────────────
+# â”€â”€â”€ Geo-enrichment: offline bounding-box lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #
 # We use a simplified static table of continental bounding boxes.
 # In production you would use Natural Earth GeoJSON + shapely/geopandas.
-# For this project, a two-tier lookup (continent → country rough box) is enough
+# For this project, a two-tier lookup (continent â†’ country rough box) is enough
 # to demonstrate the enrichment pattern without adding binary dependencies.
 
 _GEO_TABLE = [
@@ -95,12 +95,12 @@ def _geo_lookup(lat: float, lon: float):
     return ("--", "Ocean / Unclaimed", "Ocean", True)
 
 
-# ─── Orbit classification ─────────────────────────────────────────────────────
+# â”€â”€â”€ Orbit classification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 # ISS altitude from Open-Notify has no altitude; use 408 km as default for LEO.
 ISS_DEFAULT_ALTITUDE_KM = 408.0
 EARTH_RADIUS_KM = 6371.0
-GM = 3.986004418e14   # Earth's gravitational parameter (m³/s²)
+GM = 3.986004418e14   # Earth's gravitational parameter (mÂ³/sÂ²)
 
 
 def _classify_orbit(altitude_km: float):
@@ -126,7 +126,7 @@ def _classify_orbit(altitude_km: float):
     return (orbit_type, round(v_kms, 3), round(period_min, 2))
 
 
-# ─── Lighting indicator ───────────────────────────────────────────────────────
+# â”€â”€â”€ Lighting indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _in_sunlight(lat: float, lon: float, unix_ts: int) -> bool:
     """
@@ -160,7 +160,7 @@ def _in_sunlight(lat: float, lon: float, unix_ts: int) -> bool:
     return elevation_deg > -6.0   # civil twilight threshold
 
 
-# ─── Register UDFs ────────────────────────────────────────────────────────────
+# â”€â”€â”€ Register UDFs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 GEO_RESULT_TYPE = StructType([
     StructField("country_code",  StringType(), True),
@@ -193,23 +193,18 @@ def sunlight_udf(lat, lon, unix_ts):
     return _in_sunlight(lat, lon, unix_ts)
 
 
-# ─── Build SparkSession ───────────────────────────────────────────────────────
+# â”€â”€â”€ Build SparkSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def build_spark() -> SparkSession:
     return (
         SparkSession.builder
         .appName("SatOrbitEnrichment")
         .config("spark.sql.shuffle.partitions", "4")
-        .config(
-            "spark.jars.packages",
-            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,"
-            "org.apache.hadoop:hadoop-client:3.3.4",
-        )
         .getOrCreate()
     )
 
 
-# ─── Main streaming logic ─────────────────────────────────────────────────────
+# â”€â”€â”€ Main streaming logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def run():
     spark = build_spark()
@@ -294,7 +289,7 @@ def run():
         if batch_df.isEmpty():
             return
 
-        # ── Kafka ──────────────────────────────────────────────────────
+        # â”€â”€ Kafka â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         (
             batch_df
             .select(
@@ -308,7 +303,7 @@ def run():
             .save()
         )
 
-        # ── HDFS Parquet (every ~12 batches ≈ 1 minute at 5s trigger) ─
+        # â”€â”€ HDFS Parquet (every ~12 batches â‰ˆ 1 minute at 5s trigger) â”€
         _batch_count[0] += 1
         if _batch_count[0] % 12 == 0:
             (

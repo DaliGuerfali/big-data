@@ -23,7 +23,7 @@ from airflow.operators.python import PythonOperator, ShortCircuitOperator
 # Custom operators live in airflow/plugins/operators/ which Airflow puts on sys.path.
 from operators.docker_exec_operator import SparkSubmitDockerOperator
 from callbacks import task_failure_alert
-from dag_utils import publish_kafka_trigger
+from dag_utils import cache_batch_results, publish_kafka_trigger
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -142,4 +142,13 @@ with DAG(
         },
     )
 
-    check_data >> daily_aggregation >> publish_trigger
+    cache_results = PythonOperator(
+        task_id="cache_results_to_redis",
+        python_callable=cache_batch_results,
+        op_kwargs={
+            "redis_key": "batch:daily:latest",
+            "api_path": "/api/reports/daily/{{ ds }}",
+        },
+    )
+
+    check_data >> daily_aggregation >> publish_trigger >> cache_results

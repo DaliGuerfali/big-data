@@ -237,6 +237,47 @@ def run_daily_aggregation(date: str, spark: SparkSession = None) -> None:
     print(f"[daily-aggregation] Wrote orbit_health   → {output_base}/orbit_health")
 
     df.unpersist()
+
+    # ── Cache summary to Redis ────────────────────────────────────────────────
+    try:
+        import json, os, redis as _redis
+        sat_rows   = [r.asDict() for r in satellite_stats.collect()]
+        orbit_rows = [r.asDict() for r in orbit_health.collect()]
+        summary = {
+            "date": date,
+            "satellite_stats": sat_rows,
+            "country_stats":   [r.asDict() for r in country_stats.collect()],
+            "orbit_health":    orbit_rows,
+        }
+        rc = _redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379"))
+        rc.setex("batch:daily:latest", 7 * 86400, json.dumps(summary, default=str))
+
+        # Flat summary hash for Grafana (no JSON parsing needed)
+        flat = {"date": date, "satellites_tracked": str(len(sat_rows))}
+        if sat_rows:
+            alts = [float(r.get("avg_altitude_km") or 0) for r in sat_rows if r.get("avg_altitude_km")]
+            flat["avg_altitude_km"] = str(round(sum(alts) / len(alts), 1)) if alts else "n/a"
+            flat["total_positions"]  = str(sum(int(r.get("total_positions") or 0) for r in sat_rows))
+        if orbit_rows:
+            for row in orbit_rows:
+                otype = str(row.get("orbit_type") or "unknown")
+                flat[f"orbit_{otype}_avg_alt"] = str(round(float(row.get("avg_altitude") or 0), 1))
+        rc.hset("batch:daily:summary", mapping=flat)
+        rc.expire("batch:daily:summary", 7 * 86400)
+
+        # List of per-satellite rows for Grafana LRANGE + extractFields
+        rc.delete("batch:daily:list")
+        pipe = rc.pipeline()
+        for row in sat_rows:
+            row["date"] = date
+            pipe.rpush("batch:daily:list", json.dumps(row, default=str))
+        pipe.expire("batch:daily:list", 7 * 86400)
+        pipe.execute()
+        rc.close()
+        print(f"[daily-aggregation] Cached summary to Redis key batch:daily:latest")
+    except Exception as exc:
+        print(f"[daily-aggregation] WARNING: Redis cache failed: {exc}", file=sys.stderr)
+
     print(f"[daily-aggregation] Completed for date={date}")
 
 

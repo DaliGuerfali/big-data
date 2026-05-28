@@ -20,7 +20,7 @@ from airflow.operators.python import PythonOperator
 
 from operators.docker_exec_operator import HadoopStreamingDockerOperator
 from callbacks import task_failure_alert
-from dag_utils import get_week_boundaries, publish_kafka_trigger
+from dag_utils import cache_batch_results, get_week_boundaries, publish_kafka_trigger
 
 
 # ─── DAG definition ───────────────────────────────────────────────────────────
@@ -70,4 +70,13 @@ with DAG(
         op_kwargs={"job_type": "weekly_tle_drift"},
     )
 
-    calculate_week >> tle_drift_analysis >> publish_trigger
+    cache_results = PythonOperator(
+        task_id="cache_results_to_redis",
+        python_callable=cache_batch_results,
+        op_kwargs={
+            "redis_key": "batch:weekly:latest",
+            "api_path": "/api/reports/drift/{{ ti.xcom_pull(task_ids='calculate_week_range')['week_number'] }}",
+        },
+    )
+
+    calculate_week >> tle_drift_analysis >> publish_trigger >> cache_results

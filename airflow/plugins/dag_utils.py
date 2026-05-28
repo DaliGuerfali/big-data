@@ -41,6 +41,87 @@ def get_week_boundaries(reference_date: str, **_context) -> dict:
     return result
 
 
+def cache_batch_results(redis_key: str, api_path: str, ttl: int = 604_800, **context) -> None:
+    """
+    Cache batch results in Redis.  Strategy:
+    1. If the key already exists (written by the Spark job itself) — done.
+    2. Otherwise read JSON lines from HDFS via Docker exec on the namenode.
+    Non-fatal: logs a warning and returns on any error.
+    """
+    import os
+    import json as _json
+
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
+
+    # ── 1. Skip if both main key AND list key already populated ───────────────
+    list_key = redis_key.replace(":latest", ":list")
+    try:
+        import redis as redis_lib
+        r = redis_lib.from_url(redis_url, decode_responses=False)
+        main_exists = r.exists(redis_key)
+        list_exists = r.exists(list_key)
+        r.close()
+        if main_exists and list_exists:
+            print(f"[cache_batch] {redis_key} and {list_key} already in Redis — skipping")
+            return
+    except Exception as exc:
+        print(f"[cache_batch] WARNING: Redis check failed: {exc}")
+
+    # ── 2. Derive HDFS path from api_path ─────────────────────────────────────
+    if "/drift/" in api_path:
+        segment = api_path.split("/drift/")[-1]
+        hdfs_path = f"/satellite/reports/drift/week={segment}"
+    elif "/daily/" in api_path:
+        segment = api_path.split("/daily/")[-1]
+        hdfs_path = f"/satellite/aggregated/daily/date={segment}"
+    else:
+        print(f"[cache_batch] WARNING: unknown api_path pattern: {api_path}")
+        return
+
+    # ── 3. Read JSON lines from HDFS via namenode container ───────────────────
+    try:
+        import docker
+        client = docker.from_env()
+        namenode = client.containers.get("namenode")
+        exit_code, output = namenode.exec_run(
+            ["bash", "-c", f"hdfs dfs -cat '{hdfs_path}/*' 2>/dev/null"],
+        )
+        text = (output or b"").decode("utf-8", errors="replace").strip()
+        records = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line and not line.startswith("WARNING"):
+                try:
+                    records.append(_json.loads(line))
+                except _json.JSONDecodeError:
+                    pass
+        if not records:
+            print(f"[cache_batch] WARNING: no JSON records in {hdfs_path}")
+            return
+        payload = _json.dumps(records).encode("utf-8")
+    except Exception as exc:
+        print(f"[cache_batch] WARNING: HDFS read failed: {exc}")
+        return
+
+    # ── 4. Store in Redis ─────────────────────────────────────────────────────
+    try:
+        import redis as redis_lib
+        r = redis_lib.from_url(redis_url, decode_responses=False)
+        r.setex(redis_key, ttl, payload)
+
+        # Also write per-record list for Grafana LRANGE + extractFields
+        r.delete(list_key)
+        pipe = r.pipeline()
+        for rec in records:
+            pipe.rpush(list_key, _json.dumps(rec, default=str))
+        pipe.expire(list_key, ttl)
+        pipe.execute()
+        r.close()
+        print(f"[cache_batch] Cached {redis_key} and {list_key} ({len(records)} records, ttl={ttl}s)")
+    except Exception as exc:
+        print(f"[cache_batch] WARNING: Redis write failed: {exc}")
+
+
 def publish_kafka_trigger(job_type: str, date: str | None = None, **context) -> None:
     """Write a completion message to sat.batch.trigger (non-fatal on errors)."""
     try:
